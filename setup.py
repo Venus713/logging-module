@@ -9,5 +9,8 @@ setup(
       # author_email='userstar713@gmail.com',
       # license='MIT',
       packages=['logging_client'],
+      install_requires=[
+            "pika"
+      ],
       # zip_safe=False
 )
