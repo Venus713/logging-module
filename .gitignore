@@ -3,3 +3,4 @@ venv
 logging_client/__pycache__
 logs.txt
 run.py
+logging_client.egg-info
