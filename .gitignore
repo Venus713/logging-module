@@ -1,1 +1,5 @@
 venv
+.vscode
+logging_client/__pycache__
+logs.txt
+run.py
