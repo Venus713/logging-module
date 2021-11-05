@@ -1,1 +1,1 @@
-# logging-module
+# logging-client
