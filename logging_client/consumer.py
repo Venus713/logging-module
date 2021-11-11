@@ -6,7 +6,12 @@ import json
 import time
 
 import pika
+import requests
 from pika.exchange_type import ExchangeType
+
+from .config import Settings
+
+settings: Settings = Settings()
 
 
 class Consumer(object):
@@ -45,6 +50,9 @@ class Consumer(object):
 
         self.message_count = 0
         self.messages = []
+        self.api_endpoint = settings.server_component_api_endpoint
+        self.session_api_url = self.api_endpoint + "/session/"
+        self.log_api_url = self.api_endpoint + "/log/"
 
     def connect(self):
         """This method connects to RabbitMQ, returning the connection handle.
@@ -251,27 +259,38 @@ class Consumer(object):
         :param pika.Spec.BasicProperties: properties
         :param bytes body: The message body
         """
-        print(f"***************** Received: {json.loads(body)} *****************")
-        print(
-            "Received message # %s from %s: %s",
-            basic_deliver.delivery_tag,
-            properties.app_id,
-            body,
-        )
+        print(f"*********** Received: {body.decode('utf-8')} ************")
+        msg = json.loads(body.decode("utf-8"))
+        # print(
+        #     "Received message # %s from %s: %s",
+        #     basic_deliver.delivery_tag,
+        #     properties.app_id,
+        #     body,
+        # )
 
-        msg = json.loads(body)
+        try:
+            session_data = {
+                "app_id": msg.get("app_id"),
+                "app_version_id": msg.get("app_version_id"),
+                "user_id": msg.get("user_id"),
+                "device_id": msg.get("device_id"),
+                "note": msg.get("note"),
+            }
+            session_resp = requests.post(self.session_api_url, json=session_data)
+            session_resp = session_resp.json()
 
-        # communicate with server api here
-        # instead, temperally save to file.
-        with open("logs.txt", "a+") as log_file:
-            log_file.seek(0)
-            data = log_file.read(100)
-            if len(data) > 0:
-                print()
-                log_file.write("\n")
-            log_file.write(json.dumps(msg))
+            # we can discuss about session_id timeout here.
 
-        self.acknowledge_message(basic_deliver.delivery_tag)
+            log_data = {
+                "session_id": session_resp.get("session_id"),
+                "log_text": msg.get("log_msg"),
+            }
+            log_resp = requests.post(self.log_api_url, json=log_data)
+            print(f"transaction_id: {log_resp.json().get('transaction_id')}")
+        except Exception as e:
+            print(f"Exception: {e}")
+        else:
+            self.acknowledge_message(basic_deliver.delivery_tag)
 
     def acknowledge_message(self, delivery_tag):
         """Acknowledge the message delivery from RabbitMQ by sending a

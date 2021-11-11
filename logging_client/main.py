@@ -1,4 +1,5 @@
 import json
+import uuid
 from queue import Queue
 
 from .threads import PrimaryThread
@@ -26,6 +27,11 @@ class Logger(object):
 
     def info(self, request, msg, *args, **kwargs):
         self.context["log_msg"] = msg
+        try:
+            user_id = request.user.id
+        except Exception:
+            user_id = str(uuid.uuid4())
+        self.context["user_id"] = user_id
         print(f"msg: {self.context}")
         self.thread_1.queue.put(json.dumps(self.context))
         return self.thread_1

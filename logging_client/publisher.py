@@ -225,16 +225,15 @@ class Publisher(object):
         properties = pika.BasicProperties(
             app_id="logging-publisher", content_type="application/json",
         )
-        if self.message:
+        msg = json.loads(self.message)
+        if msg:
             self._channel.basic_publish(
                 self.EXCHANGE,
                 self.ROUTING_KEY,
-                json.dumps(self.message, ensure_ascii=False),
+                json.dumps(msg, ensure_ascii=False),
                 properties,
             )
-            print(
-                f"++++++++++++++++ Sucessfully published: {self.message} +++++++++++++"
-            )
+            print(f"++++++++++++++++ Sucessfully published: {msg} +++++++++++++")
             self._message_number += 1
             self._deliveries.append(self._message_number)
             self.stop()

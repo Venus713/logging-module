@@ -1,4 +1,3 @@
-import json
 import threading
 
 from .consumer import ReconnectingConsumer
@@ -38,7 +37,7 @@ class PrimaryThread(threading.Thread):
     def logmsg_pushlish(self, logmsg):
         with print_lock:
             print(threading.currentThread().getName(), "Received {}".format(logmsg))
-            self.publisher.run(json.dumps(logmsg))
+            self.publisher.run(logmsg)
 
     def kill(self):
         self.stop_threads = True
