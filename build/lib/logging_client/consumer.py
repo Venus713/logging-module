@@ -3,8 +3,8 @@
 
 import functools
 import json
-import threading
 import time
+
 import pika
 from pika.exchange_type import ExchangeType
 
@@ -19,10 +19,11 @@ class Consumer(object):
     If the channel is closed, it will indicate a problem with one of the
     commands that were issued and that should surface in the output as well.
     """
-    EXCHANGE = 'message'
+
+    EXCHANGE = "message"
     EXCHANGE_TYPE = ExchangeType.topic
-    QUEUE = 'text'
-    ROUTING_KEY = 'logging.text'
+    QUEUE = "text"
+    ROUTING_KEY = "logging.text"
 
     def __init__(self, amqp_url):
         """Create a new instance of the consumer class, passing in the AMQP
@@ -52,14 +53,15 @@ class Consumer(object):
             parameters=pika.URLParameters(self._url),
             on_open_callback=self.on_connection_open,
             on_open_error_callback=self.on_connection_open_error,
-            on_close_callback=self.on_connection_closed)
+            on_close_callback=self.on_connection_closed,
+        )
 
     def close_connection(self):
         self._consuming = False
         if self._connection.is_closing or self._connection.is_closed:
-            print('Connection is closing or already closed')
+            print("Connection is closing or already closed")
         else:
-            print('Closing connection')
+            print("Closing connection")
             self._connection.close()
 
     def on_connection_open(self, _unused_connection):
@@ -142,12 +144,10 @@ class Consumer(object):
         """
         # Note: using functools.partial is not required, it is demonstrating
         # how arbitrary data can be passed to the callback when it is called
-        cb = functools.partial(
-            self.on_exchange_declareok, userdata=exchange_name)
+        cb = functools.partial(self.on_exchange_declareok, userdata=exchange_name)
         self._channel.exchange_declare(
-            exchange=exchange_name,
-            exchange_type=self.EXCHANGE_TYPE,
-            callback=cb)
+            exchange=exchange_name, exchange_type=self.EXCHANGE_TYPE, callback=cb
+        )
 
     def on_exchange_declareok(self, _unused_frame, userdata):
         """Invoked by pika when RabbitMQ has finished the Exchange.Declare RPC
@@ -178,10 +178,8 @@ class Consumer(object):
         queue_name = userdata
         cb = functools.partial(self.on_bindok, userdata=queue_name)
         self._channel.queue_bind(
-            queue_name,
-            self.EXCHANGE,
-            routing_key=self.ROUTING_KEY,
-            callback=cb)
+            queue_name, self.EXCHANGE, routing_key=self.ROUTING_KEY, callback=cb
+        )
 
     def on_bindok(self, _unused_frame, userdata):
         """Invoked by pika when the Queue.Bind method has completed. At this
@@ -198,7 +196,8 @@ class Consumer(object):
         with different prefetch values to achieve desired performance.
         """
         self._channel.basic_qos(
-            prefetch_count=self._prefetch_count, callback=self.on_basic_qos_ok)
+            prefetch_count=self._prefetch_count, callback=self.on_basic_qos_ok
+        )
 
     def on_basic_qos_ok(self, _unused_frame):
         """Invoked by pika when the Basic.QoS method has completed. At this
@@ -218,8 +217,7 @@ class Consumer(object):
         will invoke when a message is fully received.
         """
         self.add_on_cancel_callback()
-        self._consumer_tag = self._channel.basic_consume(
-            self.QUEUE, self.on_message)
+        self._consumer_tag = self._channel.basic_consume(self.QUEUE, self.on_message)
         self.was_consuming = True
         self._consuming = True
 
@@ -250,21 +248,24 @@ class Consumer(object):
         :param pika.Spec.BasicProperties: properties
         :param bytes body: The message body
         """
-        print(f'***************** Received: {json.loads(body)} *****************')
+        print(f"***************** Received: {json.loads(body)} *****************")
         print(
-            'Received message # %s from %s: %s',
-            basic_deliver.delivery_tag, properties.app_id, body)
+            "Received message # %s from %s: %s",
+            basic_deliver.delivery_tag,
+            properties.app_id,
+            body,
+        )
 
         msg = json.loads(body)
 
         # communicate with server api here
         # instead, temperally save to file.
-        with open('logs.txt', 'a+') as log_file:
+        with open("logs.txt", "a+") as log_file:
             log_file.seek(0)
             data = log_file.read(100)
             if len(data) > 0:
                 print()
-                log_file.write('\n')
+                log_file.write("\n")
             log_file.write(json.dumps(msg))
 
         self.acknowledge_message(basic_deliver.delivery_tag)
@@ -281,9 +282,8 @@ class Consumer(object):
         Basic.Cancel RPC command.
         """
         if self._channel:
-            print('stopping consuming...')
-            cb = functools.partial(
-                self.on_cancelok, userdata=self._consumer_tag)
+            print("stopping consuming...")
+            cb = functools.partial(self.on_cancelok, userdata=self._consumer_tag)
             self._channel.basic_cancel(self._consumer_tag, cb)
 
     def on_cancelok(self, _unused_frame, userdata):
@@ -309,7 +309,7 @@ class Consumer(object):
         """
         self._connection = self.connect()
         self._connection.ioloop.start()
-        print('consumer is running...')
+        print("consumer is running...")
         # time.sleep(3)
         # self._connection.ioloop.stop()
         # print('stopping..')
@@ -352,7 +352,7 @@ class ReconnectingConsumer(object):
             # break
         except Exception:
             self._maybe_reconnect()
-        print('terminating...')
+        print("terminating...")
 
     def stop(self):
         self._consumer.stop_consuming()
@@ -383,7 +383,6 @@ class ReconnectingConsumer(object):
 #     thread_2 = threading.Thread(target=consumer.run, args=(lambda:stop_threads,)).start()
 #     print('started')
 #     consumer.stop()
-    
 
 
 # if __name__ == '__main__':

@@ -1,5 +1,6 @@
 import json
 from queue import Queue
+
 from .threads import PrimaryThread
 
 q = Queue()
@@ -17,12 +18,12 @@ class Logger(object):
             "app_id": self.app_id,
             "app_version_id": self.app_version_id,
             "device_id": self.device_id,
-            "note": self.note
+            "note": self.note,
         }
         self.thread_1 = PrimaryThread(q, self.amqp_url)
 
     def info(self, request, msg, *args, **kwargs):
-        self.context['log_msg'] = msg
+        self.context["log_msg"] = msg
         print(f"msg: {self.context}")
         self.thread_1.queue.put(json.dumps(self.context))
         return self.thread_1
