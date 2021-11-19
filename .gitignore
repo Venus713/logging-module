@@ -1,7 +1,7 @@
 venv
 .vscode
-__pycache__
-logging_client/__pycache__
+__pycache__/
+*.pyc
 logs.txt
 run.py
 logging_client.egg-info
