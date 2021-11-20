@@ -1,4 +1,5 @@
 import json
+import logging
 import uuid
 from queue import Queue
 
@@ -32,7 +33,7 @@ class Logger(object):
         except Exception:
             user_id = str(uuid.uuid4())
         self.context["user_id"] = user_id
-        print(f"msg: {self.context}")
+        logging.info(f"Received log_msg: {self.context}")
         self.thread_1.queue.put(json.dumps(self.context))
         return self.thread_1
 

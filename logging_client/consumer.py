@@ -3,6 +3,7 @@
 
 import functools
 import json
+import logging
 import time
 
 import pika
@@ -70,9 +71,9 @@ class Consumer(object):
     def close_connection(self):
         self._consuming = False
         if self._connection.is_closing or self._connection.is_closed:
-            print("Connection is closing or already closed")
+            logging.info("Connection is closing or already closed")
         else:
-            print("Closing connection")
+            logging.info("Closing connection")
             self._connection.close()
 
     def on_connection_open(self, _unused_connection):
@@ -259,7 +260,7 @@ class Consumer(object):
         :param pika.Spec.BasicProperties: properties
         :param bytes body: The message body
         """
-        print(f"*********** Received: {body.decode('utf-8')} ************")
+        logging.info(f"*********** Received: {body.decode('utf-8')} ************")
         msg = json.loads(body.decode("utf-8"))
         # print(
         #     "Received message # %s from %s: %s",
@@ -286,9 +287,9 @@ class Consumer(object):
                 "log_text": msg.get("log_msg"),
             }
             log_resp = requests.post(self.log_api_url, json=log_data)
-            print(f"transaction_id: {log_resp.json().get('transaction_id')}")
+            logging.info(f"transaction_id: {log_resp.json().get('transaction_id')}")
         except Exception as e:
-            print(f"Exception: {e}")
+            logging.error(f"Exception: {e}")
         else:
             self.acknowledge_message(basic_deliver.delivery_tag)
 
@@ -304,7 +305,7 @@ class Consumer(object):
         Basic.Cancel RPC command.
         """
         if self._channel:
-            print("stopping consuming...")
+            logging.info("stopping consuming...")
             cb = functools.partial(self.on_cancelok, userdata=self._consumer_tag)
             self._channel.basic_cancel(self._consumer_tag, cb)
 
@@ -331,7 +332,7 @@ class Consumer(object):
         """
         self._connection = self.connect()
         self._connection.ioloop.start()
-        print("consumer is running...")
+        logging.info("consumer is running...")
         # time.sleep(3)
         # self._connection.ioloop.stop()
         # print('stopping..')
@@ -365,8 +366,7 @@ class ReconnectingConsumer(object):
         self._amqp_url = amqp_url
         self._consumer = Consumer(self._amqp_url)
 
-    def run(self, stop):
-        print(stop())
+    def run(self):
         try:
             self._consumer.run()
         except KeyboardInterrupt:
@@ -374,7 +374,7 @@ class ReconnectingConsumer(object):
             # break
         except Exception:
             self._maybe_reconnect()
-        print("terminating...")
+        logging.info("terminating...")
 
     def stop(self):
         self._consumer.stop_consuming()
@@ -394,18 +394,3 @@ class ReconnectingConsumer(object):
         if self._reconnect_delay > 30:
             self._reconnect_delay = 30
         return self._reconnect_delay
-
-
-# def main():
-#     # amqp_url = 'amqp://guest:guest@localhost:5672/%2F'
-#     amqp_url = 'amqp://guest:guest@localhost:5672/%2F?connection_attempts=3&heartbeat=3600'
-#     consumer = ReconnectingConsumer(amqp_url)
-#     # consumer.run(False)
-#     stop_threads = False
-#     thread_2 = threading.Thread(target=consumer.run, args=(lambda:stop_threads,)).start()
-#     print('started')
-#     consumer.stop()
-
-
-# if __name__ == '__main__':
-#     main()
