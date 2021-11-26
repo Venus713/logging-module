@@ -17,9 +17,7 @@ class PrimaryThread(threading.Thread):
         self.start()
 
         self.consumer = ReconnectingConsumer(amqp_url)
-        self.thread_2 = threading.Thread(
-            target=self.consumer.run, args=(lambda: self.stop_threads,)
-        )
+        self.thread_2 = threading.Thread(target=self.consumer.run)
         self.thread_2.setDaemon(True)
         self.thread_2.start()
 
