@@ -3,6 +3,7 @@
 
 import functools
 import json
+import logging
 
 import pika
 from pika.exchange_type import ExchangeType
@@ -225,16 +226,15 @@ class Publisher(object):
         properties = pika.BasicProperties(
             app_id="logging-publisher", content_type="application/json",
         )
-        if self.message:
+        msg = json.loads(self.message)
+        if msg:
             self._channel.basic_publish(
                 self.EXCHANGE,
                 self.ROUTING_KEY,
-                json.dumps(self.message, ensure_ascii=False),
+                json.dumps(msg, ensure_ascii=False),
                 properties,
             )
-            print(
-                f"++++++++++++++++ Sucessfully published: {self.message} +++++++++++++"
-            )
+            logging.info(f"++++++++++++ Sucessfully published: {msg} ++++++++++++")
             self._message_number += 1
             self._deliveries.append(self._message_number)
             self.stop()
@@ -282,21 +282,3 @@ class Publisher(object):
         """This method closes the connection to RabbitMQ."""
         if self._connection is not None:
             self._connection.close()
-
-
-def main():
-    # Connect to localhost:5672 as guest with the password guest and virtual host "/" (%2F)
-    example = Publisher(
-        "amqp://guest:guest@localhost:5672/%2F?connection_attempts=3&heartbeat=3600"
-    )
-    # msg = json.dumps({'message': "hello world"})
-    for msg in [
-        json.dumps({"message": "hello world"}),
-        json.dumps({"message": "world"}),
-        json.dumps({"message": "hello"}),
-    ]:
-        example.run(msg)
-
-
-if __name__ == "__main__":
-    main()
