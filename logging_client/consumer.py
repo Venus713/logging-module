@@ -3,10 +3,16 @@
 
 import functools
 import json
-import threading
+import logging
 import time
+
 import pika
+import requests
 from pika.exchange_type import ExchangeType
+
+from .config import Settings
+
+settings: Settings = Settings()
 
 
 class Consumer(object):
@@ -19,10 +25,11 @@ class Consumer(object):
     If the channel is closed, it will indicate a problem with one of the
     commands that were issued and that should surface in the output as well.
     """
-    EXCHANGE = 'message'
+
+    EXCHANGE = "message"
     EXCHANGE_TYPE = ExchangeType.topic
-    QUEUE = 'text'
-    ROUTING_KEY = 'logging.text'
+    QUEUE = "text"
+    ROUTING_KEY = "logging.text"
 
     def __init__(self, amqp_url):
         """Create a new instance of the consumer class, passing in the AMQP
@@ -42,6 +49,12 @@ class Consumer(object):
         # for higher consumer throughput
         self._prefetch_count = 1
 
+        self.message_count = 0
+        self.messages = []
+        self.api_endpoint = settings.server_component_api_endpoint
+        self.session_api_url = self.api_endpoint + "/session/"
+        self.log_api_url = self.api_endpoint + "/log/"
+
     def connect(self):
         """This method connects to RabbitMQ, returning the connection handle.
         When the connection is established, the on_connection_open method
@@ -52,14 +65,15 @@ class Consumer(object):
             parameters=pika.URLParameters(self._url),
             on_open_callback=self.on_connection_open,
             on_open_error_callback=self.on_connection_open_error,
-            on_close_callback=self.on_connection_closed)
+            on_close_callback=self.on_connection_closed,
+        )
 
     def close_connection(self):
         self._consuming = False
         if self._connection.is_closing or self._connection.is_closed:
-            print('Connection is closing or already closed')
+            logging.info("Connection is closing or already closed")
         else:
-            print('Closing connection')
+            logging.info("Closing connection")
             self._connection.close()
 
     def on_connection_open(self, _unused_connection):
@@ -142,12 +156,10 @@ class Consumer(object):
         """
         # Note: using functools.partial is not required, it is demonstrating
         # how arbitrary data can be passed to the callback when it is called
-        cb = functools.partial(
-            self.on_exchange_declareok, userdata=exchange_name)
+        cb = functools.partial(self.on_exchange_declareok, userdata=exchange_name)
         self._channel.exchange_declare(
-            exchange=exchange_name,
-            exchange_type=self.EXCHANGE_TYPE,
-            callback=cb)
+            exchange=exchange_name, exchange_type=self.EXCHANGE_TYPE, callback=cb
+        )
 
     def on_exchange_declareok(self, _unused_frame, userdata):
         """Invoked by pika when RabbitMQ has finished the Exchange.Declare RPC
@@ -178,10 +190,8 @@ class Consumer(object):
         queue_name = userdata
         cb = functools.partial(self.on_bindok, userdata=queue_name)
         self._channel.queue_bind(
-            queue_name,
-            self.EXCHANGE,
-            routing_key=self.ROUTING_KEY,
-            callback=cb)
+            queue_name, self.EXCHANGE, routing_key=self.ROUTING_KEY, callback=cb
+        )
 
     def on_bindok(self, _unused_frame, userdata):
         """Invoked by pika when the Queue.Bind method has completed. At this
@@ -198,7 +208,8 @@ class Consumer(object):
         with different prefetch values to achieve desired performance.
         """
         self._channel.basic_qos(
-            prefetch_count=self._prefetch_count, callback=self.on_basic_qos_ok)
+            prefetch_count=self._prefetch_count, callback=self.on_basic_qos_ok
+        )
 
     def on_basic_qos_ok(self, _unused_frame):
         """Invoked by pika when the Basic.QoS method has completed. At this
@@ -218,8 +229,7 @@ class Consumer(object):
         will invoke when a message is fully received.
         """
         self.add_on_cancel_callback()
-        self._consumer_tag = self._channel.basic_consume(
-            self.QUEUE, self.on_message)
+        self._consumer_tag = self._channel.basic_consume(self.QUEUE, self.on_message)
         self.was_consuming = True
         self._consuming = True
 
@@ -250,24 +260,38 @@ class Consumer(object):
         :param pika.Spec.BasicProperties: properties
         :param bytes body: The message body
         """
-        print(f'***************** Received: {json.loads(body)} *****************')
-        print(
-            'Received message # %s from %s: %s',
-            basic_deliver.delivery_tag, properties.app_id, body)
+        logging.info(f"*********** Received: {body.decode('utf-8')} ************")
+        msg = json.loads(body.decode("utf-8"))
+        # print(
+        #     "Received message # %s from %s: %s",
+        #     basic_deliver.delivery_tag,
+        #     properties.app_id,
+        #     body,
+        # )
 
-        msg = json.loads(body)
+        try:
+            session_data = {
+                "app_id": msg.get("app_id"),
+                "app_version_id": msg.get("app_version_id"),
+                "user_id": msg.get("user_id"),
+                "device_id": msg.get("device_id"),
+                "note": msg.get("note"),
+            }
+            session_resp = requests.post(self.session_api_url, json=session_data)
+            session_resp = session_resp.json()
 
-        # communicate with server api here
-        # instead, temperally save to file.
-        with open('logs.txt', 'a+') as log_file:
-            log_file.seek(0)
-            data = log_file.read(100)
-            if len(data) > 0:
-                print()
-                log_file.write('\n')
-            log_file.write(json.dumps(msg))
+            # we can discuss about session_id timeout here.
 
-        self.acknowledge_message(basic_deliver.delivery_tag)
+            log_data = {
+                "session_id": session_resp.get("session_id"),
+                "log_text": msg.get("log_msg"),
+            }
+            log_resp = requests.post(self.log_api_url, json=log_data)
+            logging.info(f"transaction_id: {log_resp.json().get('transaction_id')}")
+        except Exception as e:
+            logging.error(f"Exception: {e}")
+        else:
+            self.acknowledge_message(basic_deliver.delivery_tag)
 
     def acknowledge_message(self, delivery_tag):
         """Acknowledge the message delivery from RabbitMQ by sending a
@@ -281,9 +305,8 @@ class Consumer(object):
         Basic.Cancel RPC command.
         """
         if self._channel:
-            print('stopping consuming...')
-            cb = functools.partial(
-                self.on_cancelok, userdata=self._consumer_tag)
+            logging.info("stopping consuming...")
+            cb = functools.partial(self.on_cancelok, userdata=self._consumer_tag)
             self._channel.basic_cancel(self._consumer_tag, cb)
 
     def on_cancelok(self, _unused_frame, userdata):
@@ -309,7 +332,7 @@ class Consumer(object):
         """
         self._connection = self.connect()
         self._connection.ioloop.start()
-        print('consumer is running...')
+        logging.info("consumer is running...")
         # time.sleep(3)
         # self._connection.ioloop.stop()
         # print('stopping..')
@@ -343,8 +366,7 @@ class ReconnectingConsumer(object):
         self._amqp_url = amqp_url
         self._consumer = Consumer(self._amqp_url)
 
-    def run(self, stop):
-        print(stop())
+    def run(self):
         try:
             self._consumer.run()
         except KeyboardInterrupt:
@@ -352,7 +374,7 @@ class ReconnectingConsumer(object):
             # break
         except Exception:
             self._maybe_reconnect()
-        print('terminating...')
+        logging.info("terminating...")
 
     def stop(self):
         self._consumer.stop_consuming()
@@ -372,19 +394,3 @@ class ReconnectingConsumer(object):
         if self._reconnect_delay > 30:
             self._reconnect_delay = 30
         return self._reconnect_delay
-
-
-# def main():
-#     # amqp_url = 'amqp://guest:guest@localhost:5672/%2F'
-#     amqp_url = 'amqp://guest:guest@localhost:5672/%2F?connection_attempts=3&heartbeat=3600'
-#     consumer = ReconnectingConsumer(amqp_url)
-#     # consumer.run(False)
-#     stop_threads = False
-#     thread_2 = threading.Thread(target=consumer.run, args=(lambda:stop_threads,)).start()
-#     print('started')
-#     consumer.stop()
-    
-
-
-# if __name__ == '__main__':
-#     main()

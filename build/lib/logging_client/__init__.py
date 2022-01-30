@@ -1,1 +1,1 @@
-from .main import Logger as logger
+from .main import Logger as logger  # noqa: F401

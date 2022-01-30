@@ -1,8 +1,8 @@
-import threading
 import json
+import threading
 
-from .publisher import Publisher
 from .consumer import ReconnectingConsumer
+from .publisher import Publisher
 
 print_lock = threading.Lock()
 
@@ -18,16 +18,18 @@ class PrimaryThread(threading.Thread):
         self.start()
 
         self.consumer = ReconnectingConsumer(amqp_url)
-        self.thread_2 = threading.Thread(target=self.consumer.run, args=(lambda:self.stop_threads,))
+        self.thread_2 = threading.Thread(
+            target=self.consumer.run, args=(lambda: self.stop_threads,)
+        )
         self.thread_2.setDaemon(True)
         self.thread_2.start()
 
     def run(self):
-        print(threading.currentThread().getName(), self.stop_threads, 'primary')
+        print(threading.currentThread().getName(), self.stop_threads, "primary")
         while True:
             if self.stop_threads:
                 self.consumer.stop()
-                print('killed')
+                print("killed")
                 break
             while not self.queue.empty():
                 val = self.queue.get()

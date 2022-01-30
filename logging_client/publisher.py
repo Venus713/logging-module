@@ -3,6 +3,8 @@
 
 import functools
 import json
+import logging
+
 import pika
 from pika.exchange_type import ExchangeType
 
@@ -18,11 +20,11 @@ class Publisher(object):
     messages that have been sent and if they've been confirmed by RabbitMQ.
     """
 
-    EXCHANGE = 'message'
+    EXCHANGE = "message"
     EXCHANGE_TYPE = ExchangeType.topic
     PUBLISH_INTERVAL = 1
-    QUEUE = 'text'
-    ROUTING_KEY = 'logging.text'
+    QUEUE = "text"
+    ROUTING_KEY = "logging.text"
 
     def __init__(self, amqp_url):
         """Setup the publisher object, passing in the URL we will use
@@ -51,7 +53,8 @@ class Publisher(object):
             pika.URLParameters(self._url),
             on_open_callback=self.on_connection_open,
             on_open_error_callback=self.on_connection_open_error,
-            on_close_callback=self.on_connection_closed)
+            on_close_callback=self.on_connection_closed,
+        )
 
     def on_connection_open(self, _unused_connection):
         """This method is called by pika once the connection to RabbitMQ has
@@ -128,12 +131,10 @@ class Publisher(object):
         """
         # Note: using functools.partial is not required, it is demonstrating
         # how arbitrary data can be passed to the callback when it is called
-        cb = functools.partial(
-            self.on_exchange_declareok, userdata=exchange_name)
+        cb = functools.partial(self.on_exchange_declareok, userdata=exchange_name)
         self._channel.exchange_declare(
-            exchange=exchange_name,
-            exchange_type=self.EXCHANGE_TYPE,
-            callback=cb)
+            exchange=exchange_name, exchange_type=self.EXCHANGE_TYPE, callback=cb
+        )
 
     def on_exchange_declareok(self, _unused_frame, userdata):
         """Invoked by pika when RabbitMQ has finished the Exchange.Declare RPC
@@ -149,8 +150,7 @@ class Publisher(object):
         be invoked by pika.
         :param str|unicode queue_name: The name of the queue to declare.
         """
-        self._channel.queue_declare(
-            queue=queue_name, callback=self.on_queue_declareok)
+        self._channel.queue_declare(queue=queue_name, callback=self.on_queue_declareok)
 
     def on_queue_declareok(self, _unused_frame):
         """Method invoked by pika when the Queue.Declare RPC call made in
@@ -164,7 +164,8 @@ class Publisher(object):
             self.QUEUE,
             self.EXCHANGE,
             routing_key=self.ROUTING_KEY,
-            callback=self.on_bindok)
+            callback=self.on_bindok,
+        )
 
     def on_bindok(self, _unused_frame):
         """This method is invoked by pika when it receives the Queue.BindOk
@@ -201,10 +202,10 @@ class Publisher(object):
         that are pending confirmation.
         :param pika.frame.Method method_frame: Basic.Ack or Basic.Nack frame
         """
-        confirmation_type = method_frame.method.NAME.split('.')[1].lower()
-        if confirmation_type == 'ack':
+        confirmation_type = method_frame.method.NAME.split(".")[1].lower()
+        if confirmation_type == "ack":
             self._acked += 1
-        elif confirmation_type == 'nack':
+        elif confirmation_type == "nack":
             self._nacked += 1
         self._deliveries.remove(method_frame.method.delivery_tag)
 
@@ -223,14 +224,17 @@ class Publisher(object):
             return
 
         properties = pika.BasicProperties(
-            app_id='logging-publisher',
-            content_type='application/json',
+            app_id="logging-publisher", content_type="application/json",
         )
-        if self.message:
-            self._channel.basic_publish(self.EXCHANGE, self.ROUTING_KEY,
-                                        json.dumps(self.message, ensure_ascii=False),
-                                        properties)
-            print(f'++++++++++++++++ Sucessfully published: {self.message} +++++++++++++')
+        msg = json.loads(self.message)
+        if msg:
+            self._channel.basic_publish(
+                self.EXCHANGE,
+                self.ROUTING_KEY,
+                json.dumps(msg, ensure_ascii=False),
+                properties,
+            )
+            logging.info(f"++++++++++++ Sucessfully published: {msg} ++++++++++++")
             self._message_number += 1
             self._deliveries.append(self._message_number)
             self.stop()
@@ -251,8 +255,7 @@ class Publisher(object):
             self._connection.ioloop.start()
         except KeyboardInterrupt:
             self.stop()
-            if (self._connection is not None and
-                    not self._connection.is_closed):
+            if self._connection is not None and not self._connection.is_closed:
                 # Finish closing
                 self._connection.ioloop.start()
 
@@ -279,17 +282,3 @@ class Publisher(object):
         """This method closes the connection to RabbitMQ."""
         if self._connection is not None:
             self._connection.close()
-
-
-def main():
-    # Connect to localhost:5672 as guest with the password guest and virtual host "/" (%2F)
-    example = Publisher(
-        'amqp://guest:guest@localhost:5672/%2F?connection_attempts=3&heartbeat=3600'
-    )
-    # msg = json.dumps({'message': "hello world"})
-    for msg in [json.dumps({'message': "hello world"}), json.dumps({'message': "world"}), json.dumps({'message': "hello"})]:
-        example.run(msg)
-
-
-if __name__ == '__main__':
-    main()
