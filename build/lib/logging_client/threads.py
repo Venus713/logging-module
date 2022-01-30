@@ -1,4 +1,3 @@
-import json
 import threading
 
 from .consumer import ReconnectingConsumer
@@ -18,9 +17,7 @@ class PrimaryThread(threading.Thread):
         self.start()
 
         self.consumer = ReconnectingConsumer(amqp_url)
-        self.thread_2 = threading.Thread(
-            target=self.consumer.run, args=(lambda: self.stop_threads,)
-        )
+        self.thread_2 = threading.Thread(target=self.consumer.run)
         self.thread_2.setDaemon(True)
         self.thread_2.start()
 
@@ -38,7 +35,7 @@ class PrimaryThread(threading.Thread):
     def logmsg_pushlish(self, logmsg):
         with print_lock:
             print(threading.currentThread().getName(), "Received {}".format(logmsg))
-            self.publisher.run(json.dumps(logmsg))
+            self.publisher.run(logmsg)
 
     def kill(self):
         self.stop_threads = True
