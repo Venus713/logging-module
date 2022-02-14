@@ -3,6 +3,20 @@
 `logging-client` is a Python client for logging message in a Python applications.
 `logging-client` is one part of our `Logging System`.
 
+## How to develope?
+
+- Locally install after updating this package in development
+
+```bash
+pip install -e .
+```
+
+- build after updating
+
+```bash
+python setup.py install
+```
+
 ## Installation
 
 ### Minimum Requirements
@@ -11,9 +25,9 @@
 
 ### Installing with `pip`
 
-    ```
-    $ pip install git+git://github.com/Venus713/logging-module.git
-    ```
+```bash
+pip install git+git://github.com/Venus713/logging-module.git
+```
 
 ### `Logger` object
 
@@ -26,12 +40,12 @@
 
 ### How to use it?
 
-    ```
-    logger = Logger(
-        app_id=<your app id>,
-        app_version_id=<your app version>,
-        device_id=<your device id>,
-        amqp_url=<your broker url>
-    )
-    logger.info(request, <your message text>, <your note>)
-    ```
+```python
+logger = Logger(
+    app_id=<your app id>,
+    app_version_id=<your app version>,
+    device_id=<your device id>,
+    amqp_url=<your broker url>
+)
+logger.info(request, <your message text>, <your note>)
+```
