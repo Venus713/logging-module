@@ -319,6 +319,7 @@ class Consumer(object):
         cb = functools.partial(self.on_cancelok, userdata=self._consumer_tag)
         if self._channel:
             self._channel.basic_cancel(self._consumer_tag, cb)
+        print("consumer is stopped")
 
     def on_cancelok(self, _unused_frame, userdata):
         """This method is invoked by pika when RabbitMQ acknowledges the
