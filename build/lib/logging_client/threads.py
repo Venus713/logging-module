@@ -25,16 +25,28 @@ class PrimaryThread(threading.Thread):
         print(threading.currentThread().getName(), self.stop_threads, "primary")
         while True:
             if self.stop_threads:
+                self.consumer.prepare_stop_consumer()
+                while self.consumer.is_stopped_consumer() is False:
+                    import time
+
+                    time.sleep(1)
+                    print("preparing consumer stop...")
+                    is_stopped = self.consumer.is_stopped_consumer()
+                    print(f"is_stopped: {is_stopped}")
                 self.consumer.stop()
                 print("killed")
                 break
-            while not self.queue.empty():
-                val = self.queue.get()
-                self._return = self.logmsg_pushlish(val)
+            else:
+                while not self.queue.empty():
+                    val = self.queue.get()
+                    self._return = self.logmsg_publish(val)
 
-    def logmsg_pushlish(self, logmsg):
+    def logmsg_publish(self, logmsg):
         with print_lock:
-            print(threading.currentThread().getName(), "Received {}".format(logmsg))
+            print(
+                threading.currentThread().getName(),
+                "Publisher: Received {}".format(logmsg),
+            )
             self.publisher.run(logmsg)
 
     def kill(self):

@@ -7,9 +7,9 @@ import logging
 import time
 
 import pika
-import requests
 from pika.exchange_type import ExchangeType
 
+from .api_clients import APIClients
 from .config import Settings
 
 settings: Settings = Settings()
@@ -28,7 +28,7 @@ class Consumer(object):
 
     EXCHANGE = "message"
     EXCHANGE_TYPE = ExchangeType.topic
-    QUEUE = "text"
+    QUEUE = "ic-log"
     ROUTING_KEY = "logging.text"
 
     def __init__(self, amqp_url):
@@ -51,9 +51,16 @@ class Consumer(object):
 
         self.message_count = 0
         self.messages = []
-        self.api_endpoint = settings.server_component_api_endpoint
-        self.session_api_url = self.api_endpoint + "/session/"
-        self.log_api_url = self.api_endpoint + "/log/"
+
+        self.is_stop = False
+        self.is_stopped = False
+
+    def get_message_count(self):
+        connection = pika.BlockingConnection()
+        channel = connection.channel()
+        q = channel.queue_declare(self.QUEUE)
+        q_len = q.method.message_count
+        return q_len
 
     def connect(self):
         """This method connects to RabbitMQ, returning the connection handle.
@@ -164,7 +171,8 @@ class Consumer(object):
     def on_exchange_declareok(self, _unused_frame, userdata):
         """Invoked by pika when RabbitMQ has finished the Exchange.Declare RPC
         command.
-        :param pika.Frame.Method unused_frame: Exchange.DeclareOk response frame
+        :param pika.Frame.Method unused_frame:
+         Exchange.DeclareOk response frame
         :param str|unicode userdata: Extra user data (exchange name)
         """
         self.setup_queue(self.QUEUE)
@@ -260,38 +268,37 @@ class Consumer(object):
         :param pika.Spec.BasicProperties: properties
         :param bytes body: The message body
         """
-        logging.info(f"*********** Received: {body.decode('utf-8')} ************")
-        msg = json.loads(body.decode("utf-8"))
-        # print(
-        #     "Received message # %s from %s: %s",
-        #     basic_deliver.delivery_tag,
-        #     properties.app_id,
-        #     body,
-        # )
+        print(
+            "Received message ### {2} from {0}: {1}".format(
+                basic_deliver.delivery_tag, properties.app_id, body.decode("utf-8")
+            )
+        )
+        self.message_count = self.get_message_count()
+        print(f"is_stop: {self.is_stop}")
+        print(f"message_count: {self.message_count}")
+        if self.is_stop and (
+            self.message_count > settings.tbd_number or self.message_count == 0
+        ):
+            self.stop_consuming()
+            self.is_stopped = True
+            print(f"is_stopped: {self.is_stopped}")
+        if not self.is_stopped:
+            msg = json.loads(body.decode("utf-8"))
+            # self.acknowledge_message(basic_deliver.delivery_tag)
 
+            self.send_message(basic_deliver, msg)
+
+    def send_message(self, basic_deliver, msg):
         try:
-            session_data = {
-                "app_id": msg.get("app_id"),
-                "app_version_id": msg.get("app_version_id"),
-                "user_id": msg.get("user_id"),
-                "device_id": msg.get("device_id"),
-                "note": msg.get("note"),
-            }
-            session_resp = requests.post(self.session_api_url, json=session_data)
-            session_resp = session_resp.json()
-
-            # we can discuss about session_id timeout here.
-
-            log_data = {
-                "session_id": session_resp.get("session_id"),
-                "log_text": msg.get("log_msg"),
-            }
-            log_resp = requests.post(self.log_api_url, json=log_data)
-            logging.info(f"transaction_id: {log_resp.json().get('transaction_id')}")
+            api_client: APIClients = APIClients()
+            transaction_id = api_client.send_log(msg)
+            print(f"transaction_id: {transaction_id}")
+            if transaction_id:
+                self.acknowledge_message(basic_deliver.delivery_tag)
         except Exception as e:
-            logging.error(f"Exception: {e}")
-        else:
-            self.acknowledge_message(basic_deliver.delivery_tag)
+            print(f"Exception: {e}")
+            self.stop_consuming()
+            self.is_stopped = True
 
     def acknowledge_message(self, delivery_tag):
         """Acknowledge the message delivery from RabbitMQ by sending a
@@ -300,13 +307,17 @@ class Consumer(object):
         """
         self._channel.basic_ack(delivery_tag)
 
+    def prepare_stop_consuming(self):
+        self.is_stop = True
+        return self.is_stop
+
     def stop_consuming(self):
         """Tell RabbitMQ that you would like to stop consuming by sending the
         Basic.Cancel RPC command.
         """
+        print("consumer is stopping...")
+        cb = functools.partial(self.on_cancelok, userdata=self._consumer_tag)
         if self._channel:
-            logging.info("stopping consuming...")
-            cb = functools.partial(self.on_cancelok, userdata=self._consumer_tag)
             self._channel.basic_cancel(self._consumer_tag, cb)
 
     def on_cancelok(self, _unused_frame, userdata):
@@ -375,6 +386,12 @@ class ReconnectingConsumer(object):
         except Exception:
             self._maybe_reconnect()
         logging.info("terminating...")
+
+    def prepare_stop_consumer(self):
+        return self._consumer.prepare_stop_consuming()
+
+    def is_stopped_consumer(self):
+        return self._consumer.is_stopped
 
     def stop(self):
         self._consumer.stop_consuming()

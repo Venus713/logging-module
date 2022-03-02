@@ -45,7 +45,11 @@ logger = Logger(
     app_id=<your app id>,
     app_version_id=<your app version>,
     device_id=<your device id>,
-    amqp_url=<your broker url>
+    amqp_url=<your broker url>,
+    username=<your username>,
+    password=<your password>
 )
 logger.info(request, <your message text>, <your note>)
 ```
+
+`Note`: Make sure that `RabbitMQ` and `Redis` server is running on your system.
