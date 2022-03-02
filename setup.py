@@ -9,6 +9,6 @@ setup(
     # author_email='userstar713@gmail.com',
     # license='MIT',
     packages=["logging_client"],
-    install_requires=["pika", "requests"],
+    install_requires=["pika", "requests", "redis"],
     # zip_safe=False
 )

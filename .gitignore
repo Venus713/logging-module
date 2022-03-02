@@ -7,3 +7,5 @@ run.py
 logging_client.egg-info
 build
 dist
+local_test_script.py
+.venv-client-component

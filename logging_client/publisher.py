@@ -3,7 +3,6 @@
 
 import functools
 import json
-import logging
 
 import pika
 from pika.exchange_type import ExchangeType
@@ -23,7 +22,7 @@ class Publisher(object):
     EXCHANGE = "message"
     EXCHANGE_TYPE = ExchangeType.topic
     PUBLISH_INTERVAL = 1
-    QUEUE = "text"
+    QUEUE = "ic-log"
     ROUTING_KEY = "logging.text"
 
     def __init__(self, amqp_url):
@@ -139,7 +138,8 @@ class Publisher(object):
     def on_exchange_declareok(self, _unused_frame, userdata):
         """Invoked by pika when RabbitMQ has finished the Exchange.Declare RPC
         command.
-        :param pika.Frame.Method unused_frame: Exchange.DeclareOk response frame
+        :param pika.Frame.Method unused_frame:
+         Exchange.DeclareOk response frame
         :param str|unicode userdata: Extra user data (exchange name)
         """
         self.setup_queue(self.QUEUE)
@@ -234,7 +234,7 @@ class Publisher(object):
                 json.dumps(msg, ensure_ascii=False),
                 properties,
             )
-            logging.info(f"++++++++++++ Sucessfully published: {msg} ++++++++++++")
+            print(f"++++++ Successfully published: {msg} ++++++++")
             self._message_number += 1
             self._deliveries.append(self._message_number)
             self.stop()
