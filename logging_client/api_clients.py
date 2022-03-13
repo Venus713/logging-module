@@ -137,7 +137,11 @@ class APIClients:
             resp = self.__request("POST", self.login_url, json=self.__credential)
             self.__token = resp.get("access_token")
             r.update_data("token", self.__token)
+
             r.update_data("update_msg", "")
+            self.is_create_token = False
+
+            r.update_data("create_msg", "")
             self.is_update_token = False
         print(f"current token: {self.__token}")
         return self.__token
