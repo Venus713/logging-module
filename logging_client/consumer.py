@@ -290,7 +290,8 @@ class Consumer(object):
 
     def send_message(self, basic_deliver, msg):
         try:
-            api_client: APIClients = APIClients()
+            thread_id = msg.get("thread_id")
+            api_client: APIClients = APIClients(thread_id)
             transaction_id = api_client.send_log(msg)
             print(f"transaction_id: {transaction_id}")
             if transaction_id:
@@ -345,9 +346,6 @@ class Consumer(object):
         self._connection = self.connect()
         self._connection.ioloop.start()
         logging.info("consumer is running...")
-        # time.sleep(3)
-        # self._connection.ioloop.stop()
-        # print('stopping..')
 
     def stop(self):
         """Cleanly shutdown the connection to RabbitMQ by stopping the consumer
