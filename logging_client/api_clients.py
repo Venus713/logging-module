@@ -24,7 +24,7 @@ class APIClients:
         self.is_create_token: bool = True if r.get_data("create_msg") else False
         self.is_update_token: bool = True if r.get_data("update_msg") else False
 
-        self.is_token_expired: bool = True
+        self.is_token_expired: bool = False
 
         self.__session_id: str = None
         self.is_session_expired: bool = True
@@ -88,6 +88,18 @@ class APIClients:
             method, url, headers=headers, params=params, data=data, json=json, **kwargs
         )
 
+        if url == self.signup_url and response.status_code == 400:
+            r.update_data("create_msg", "")
+            self.is_create_token = False
+
+        if response.status_code in [401, 403]:
+            print(f"token has been expired in calling {url}")
+            self.is_token_expired = True
+            self.get_auth_token()
+            self.__request(
+                method=method, url=url, headers=headers, data=data, json=json
+            )
+
         if response.status_code not in [200, 201, 202, 203, 204, 205, 206]:
             print(
                 "status_code is not [200, 201, 202, 203, 204, 205, 206] " "in __request"
@@ -117,15 +129,16 @@ class APIClients:
             except Exception as e:
                 print(f"exception in calling signup api: {e}")
                 self.is_update_token = True
+                r.update_data("create_msg", "")
                 self.is_create_token = False
                 self.get_auth_token()
-        elif self.is_token_expired:
+        elif self.is_token_expired or not self.__token:
             print("calling signin api")
             resp = self.__request("POST", self.login_url, json=self.__credential)
             self.__token = resp.get("access_token")
             r.update_data("token", self.__token)
             r.update_data("update_msg", "")
-            self.is_update_token = True
+            self.is_update_token = False
         print(f"current token: {self.__token}")
         return self.__token
 
