@@ -14,8 +14,10 @@ settings: Settings = Settings()
 
 
 class APIClients:
-    def __init__(self) -> None:
+    def __init__(self, thread_id: str = None) -> None:
         self.headers: Dict = {}
+
+        self.thread_id = thread_id
 
         self.__credential = json.loads(r.get_data("credential"))
         self.__token: str = r.get_data("token")
@@ -102,6 +104,8 @@ class APIClients:
     def get_auth_token(self):
         # please add more exception handling here
 
+        self.__credential["thread_id"] = self.thread_id
+
         if self.is_create_token:
             try:
                 print("calling signup api")
@@ -145,10 +149,12 @@ class APIClients:
             "app_version_id": data.get("app_version_id"),
             "device_id": data.get("device_id"),
             "note": data.get("note"),
+            "thread_id": data.get("thread_id"),
         }
         self.get_session_id(session_data)
 
         log_data = data.get("log_data")
+        log_data["thread_id"] = data.get("thread_id")
         if log_data.get("log_attachment"):
             file_contents = (
                 open(log_data["log_attachment"], "rb").read().decode(errors="ignore")

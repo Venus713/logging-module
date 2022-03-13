@@ -1,6 +1,8 @@
 import json
 import logging
 from queue import Queue
+from threading import Thread
+from typing import List
 
 from .memory import RedisMemory
 from .threads import PrimaryThread
@@ -49,20 +51,36 @@ class Logger(object):
 
         self.thread_1 = PrimaryThread(q, self.amqp_url)
 
-    def info(
-        self, log_txt: str, log_json: dict = {}, log_attachment: str = None, note=None
-    ):
-        log_data = {
-            "log_txt": log_txt,
-            "log_json": log_json,
-            "log_attachment": log_attachment,
+    def info(self, thread_id: str, log_data: List[dict]) -> dict:
+        """
+        data should be a list of bellow data.
+        {
+            log_txt: str
+            log_json: dict = {}
+            log_attachment: str = None
+            note: str = None
         }
-        self.context["log_data"] = log_data
-        self.context["note"] = note
+        """
 
-        logging.info(f"Received log_data: {self.context}")
-        self.thread_1.queue.put(json.dumps(self.context))
-        return self.thread_1
+        t = Thread(target=self.log_task, args=(thread_id, log_data,))
+        t.start()
+        t.join()
+        return {"message": "Successfully published"}
+
+    def log_task(self, id: str, data: List[dict] = []) -> None:
+        for d in data:
+            context_data = self.context
+            log_data = {
+                "log_txt": d.get("log_txt"),
+                "log_json": d.get("log_json", {}),
+                "log_attachment": d.get("log_attachment"),
+            }
+            context_data["log_data"] = log_data
+            context_data["note"] = d.get("note")
+            context_data["thread_id"] = id
+
+            logging.info(f"Received log_data: {context_data}")
+            self.thread_1.queue.put(json.dumps(context_data))
 
     def terminate(self):
         self.thread_1.kill()

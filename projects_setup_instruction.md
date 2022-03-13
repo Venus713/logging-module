@@ -33,9 +33,21 @@
         app_id=<your app id>,
         app_version_id=<your app version>,
         device_id=<your device id>,
-        amqp_url=<your broker url>
+        amqp_url=<your broker url>,
+        username=<your username>,
+        password=<your password>
     )
-    logger.info(request, <your message text>, <your note>)
+    logger.info(
+        thread_id,
+        [
+            {
+            'log_txt': <your log text>,
+            'log_json': <your log json>,
+            'log_attachment': <your attachment file path>
+            },
+            ...
+        ]
+    )
     ```
 
 ## Server Component

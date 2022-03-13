@@ -49,7 +49,17 @@ logger = Logger(
     username=<your username>,
     password=<your password>
 )
-logger.info(request, <your message text>, <your note>)
+logger.info(
+    thread_id,
+    [
+        {
+            'log_txt': <your log text>,
+            'log_json': <your log json>,
+            'log_attachment': <your attachment file path>
+        },
+        ...
+    ]
+)
 ```
 
 `Note`: Make sure that `RabbitMQ` and `Redis` server is running on your system.
