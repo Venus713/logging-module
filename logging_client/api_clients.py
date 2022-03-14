@@ -176,13 +176,13 @@ class APIClients:
             file_contents = (
                 open(log_data["log_attachment"], "rb").read().decode(errors="ignore")
             )
-            filename, file_extension = os.path.splitext(log_data.get("log_attachment"))
+            filename = os.path.basename(log_data.get("log_attachment"))
             log_data["log_attachment"] = {
-                "attachment": file_contents,
-                "file_type": file_extension,
+                "file_content": file_contents,
+                "file_name": filename,
             }
         else:
-            log_data["log_attachment"] = {"attachment": None, "file_type": None}
+            log_data["log_attachment"] = {"file_content": None, "file_name": None}
         if log_data.get("log_text"):
             log_data["log_txt"] = log_data["log_text"]
 
